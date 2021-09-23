@@ -5,19 +5,39 @@ db = SQLAlchemy()
 class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
+    name= db.Column(db.String(50), default="")
+    username = db.Column(db.String(100), unique=True, nullable=False)
+    password = db.Column(db.String(150), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    password = db.Column(db.String(80), unique=False, nullable=False)
-    is_active = db.Column(db.Boolean(), unique=False, nullable=False)
-
-    def __repr__(self):
-        return '<User %r>' % self.username
+    is_active = db.Column(db.Boolean(), default=True)
+    favorites_planets = db.relationship('Planet', cascade="all, delete", secondary="favorites_planets") # JOIN SQL MANY TO MANY
+    favorites_characters = db.relationship('Character', cascade="all, delete", secondary="favorites_characters") # JOIN SQL MANY TO MANY
+    
+    #def __repr__(self):
+        #return '<User %r>' % self.username
 
     def serialize(self):
         return {
             "id": self.id,
+            "name": self.name,
+            "username": self.username,
             "email": self.email,
             # do not serialize the password, its a security breach
         }
+
+    def serialize_with_favorites(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "favorites_planets": self.get_planets(),
+            "favorites_characters": self.get_characters()
+        }
+
+    def get_planets(self):
+        return list(map(lambda planet: planet.serialize(), self.favorites_planets))
+
+    def get_characters(self):
+        return list(map(lambda character: character.serialize(), self.favorites_characters))
 
     def save(self):
         db.session.add(self)
@@ -38,8 +58,9 @@ class Character(db.Model):
     eye_color = db.Column(db.String(50), default="")
     gender = db.Column(db.String(50), default="")
     description = db.Column(db.String(250), default="")
-    planet_id = db.Column(db.Integer, db.ForeignKey("planets.id"), nullable=False)
-
+    planet_id = db.Column(db.Integer, db.ForeignKey("planets.id", ondelete='CASCADE'), nullable=False)
+    users = db.relationship('User', cascade="all, delete", secondary="favorites_characters")
+    
     def serialize(self):
         return {
             "id": self.id,
@@ -49,7 +70,6 @@ class Character(db.Model):
             "gender": self.gender,
             "description": self.description,
             "homeworld": self.planet.name #traemos de la tabla planeta el nombre del planeta
-            
         }
 
     def save(self):
@@ -72,9 +92,9 @@ class Planet(db.Model):
     population = db.Column(db.String(150), default="")
     climate = db.Column(db.String(150), default="")
     terrain = db.Column(db.String(150), default="")
-    characters = db.relationship("Character", backref="planet")
-    
-    
+    characters = db.relationship("Character", cascade="all, delete", backref="planet") # JOIN SQL ONE TO MANY
+    #users = db.relationship('User', cascade="all, delete", secondary="favorites_users")
+
     def serialize(self):
         return {
             "id": self.id,
@@ -91,6 +111,46 @@ class Planet(db.Model):
         db.session.commit()
 
     def update(self):
+        db.session.commit()
+
+    def delete(self):
+        db.session.delete(self)
+        db.session.commit()
+
+class FavoritePlanet(db.Model):
+    __tablename__ = 'favorites_planets'
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), primary_key=True)
+    planet_id = db.Column(db.Integer, db.ForeignKey('planets.id', ondelete='CASCADE'), primary_key=True)
+
+    def serialize(self):
+        return {
+            "user_id": self.user_id,
+            "planet_id": self.planet_id
+            #"favorite_planet": self.planet.name, #traemos de la tabla Planet el nombre del planeta
+        }
+
+    def save(self):
+        db.session.add(self)
+        db.session.commit()
+
+    def delete(self):
+        db.session.delete(self)
+        db.session.commit()
+
+class FavoriteCharacter(db.Model):
+    __tablename__ = 'favorites_characters'
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), primary_key=True)
+    character_id = db.Column(db.Integer, db.ForeignKey('characters.id', ondelete='CASCADE'), primary_key=True)
+
+    def serialize(self):
+        return {
+            "user_id": self.user_id,
+            "character_id": self.character_id
+            #"favorite_character": self.character.name #traemos de la tabla Character el nombre del Pesonaje
+        }
+
+    def save(self):
+        db.session.add(self)
         db.session.commit()
 
     def delete(self):

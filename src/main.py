@@ -6,9 +6,11 @@ from flask import Flask, request, jsonify, url_for
 from flask_migrate import Migrate
 from flask_swagger import swagger
 from flask_cors import CORS
+
 from utils import APIException, generate_sitemap
 from admin import setup_admin
-from models import db, User, Character, Planet
+from models import db, User, Character, Planet, FavoritePlanet, FavoriteCharacter
+from werkzeug.security import generate_password_hash, check_password_hash
 #from models import Person
 
 app = Flask(__name__)
@@ -20,6 +22,10 @@ db.init_app(app)
 CORS(app)
 setup_admin(app)
 
+# Setup the Flask-JWT-Extended extension
+""" app.config["JWT_SECRET_KEY"] = "secret-key"  # Change this!
+jwt = JWTManager(app) """
+
 # Handle/serialize errors like a JSON object
 @app.errorhandler(APIException)
 def handle_invalid_usage(error):
@@ -30,19 +36,81 @@ def handle_invalid_usage(error):
 def sitemap():
     return generate_sitemap(app)
 
-@app.route('/user', methods=['GET'])
-def handle_hello():
+@app.route('/api/register', methods=['POST'])
+def register():
 
-    response_body = {
-        "msg": "Hello, this is your GET /user response "
-    }
-    return jsonify(response_body), 200
+    username = request.json.get('username')
+    password = request.json.get('password')
+    email = request.json.get('email')
+
+    verify_username = User.query.filter_by(username=username).first()
+    if verify_username: return jsonify({"msg": "Username ya esta en uso !"}), 400
+
+    verify_email = User.query.filter_by(email=email).first()
+    if verify_email: return jsonify({"msg": "Email ya esta en uso !"}), 400
+
+    user = User()
+    user.username = username
+    user.password = generate_password_hash(password)
+    user.email = email
+    user.save()
+
+    return jsonify(user.serialize()), 201
+
+@app.route('/api/user', methods=['GET'])
+def get_users():
+    users = User.query.all()
+    users = list(map(lambda user: user.serialize(), users))
+    return jsonify(users), 200
+
+@app.route('/api/user/favorites', methods=['GET'])
+def get_users_favorites():
+    users = User.query.all()
+    users = list(map(lambda user: user.serialize_with_favorites(), users))
+    return jsonify(users), 200
+
+@app.route('/api/user', methods=['POST'])
+def post_users():
+
+    name = request.json.get('name', " ")
+    username = request.json.get('username')
+    password = request.json.get('password')
+    email = request.json.get('email')
+    is_active = request.json.get('is_active')
+
+    user = User()
+    user.name = name
+    user.username = username
+    user.password = password
+    user.email = email
+    user.is_active = is_active
+    user.save()
+
+    return jsonify(user.serialize()), 201
+
+@app.route('/api/user/<int:id>', methods=['DELETE'])
+def delete_users(id):
+
+    user = User.query.get(id)
+
+    if not user: return jsonify({"status": False, "msg": "User doesn't exist"}), 404
+
+    user.delete()
+
+    return jsonify({"status": True, "msg": "User deleted"}), 200
 
 @app.route('/api/character', methods=['GET'])
 def get_characters():
     characters = Character.query.all()
     characters = list(map(lambda character: character.serialize(), characters))
     return jsonify(characters), 200
+
+@app.route('/api/character/<int:id>', methods=['GET'])
+def get_characters_id(id):
+    
+    character = Character.query.get(id)
+    if not character: return jsonify({"status": False, "msg": "Character doesn't exist"}), 404
+    return jsonify(character.serialize()), 200
 
 @app.route('/api/character', methods=['POST'])
 def post_characters():
@@ -103,6 +171,13 @@ def get_planets():
     planets = list(map(lambda planet: planet.serialize(), planets))
     return jsonify(planets), 200
 
+@app.route('/api/planet/<int:id>', methods=['GET'])
+def get_planets_id(id):
+    
+    planet = Planet.query.get(id)
+    if not planet: return jsonify({"status": False, "msg": "Planet doesn't exist"}), 404
+    return jsonify(planet.serialize()), 200
+
 @app.route('/api/planet', methods=['POST'])
 def post_planets():
 
@@ -112,7 +187,6 @@ def post_planets():
     population = request.json.get('population')
     climate = request.json.get('climate')
     terrain = request.json.get('terrain')
-    #characters = request.json.get('characters') # No va porque se asigna con el character
 
     planet = Planet()
     planet.name = name
@@ -121,15 +195,76 @@ def post_planets():
     planet.population = population
     planet.climate = climate
     planet.terrain = terrain
-    #planet.characters = characters
     planet.save()
 
     return jsonify(planet.serialize()), 201
 
+@app.route('/api/planet/<int:id>', methods=['PUT'])
+def put_planets(id):
 
+    name = request.json.get('name')
+    diameter = request.json.get('diameter')
+    rotation_period = request.json.get('rotation_period')
+    population = request.json.get('population')
+    climate = request.json.get('climate')
+    terrain = request.json.get('terrain')
 
+    planet = Planet.query.get(id)
+    planet.name = name
+    planet.diameter = diameter
+    planet.rotation_period = rotation_period
+    planet.population = population
+    planet.climate = climate
+    planet.terrain = terrain
+    planet.update()
 
+    return jsonify(planet.serialize()), 200
 
+@app.route('/api/favorite/planet', methods=['POST'])
+def post_favorites_planets():
+    
+    user_id = request.json.get('user_id')
+    planet_id = request.json.get('planet_id')
+
+    favorites_planet = FavoritePlanet()
+    favorites_planet.user_id = user_id
+    favorites_planet.planet_id = planet_id
+    favorites_planet.save()
+
+    return jsonify(favorites_planet.serialize()), 201
+
+@app.route('/api/favorite/planet/<int:id_user>/<int:id_planet>', methods=['DELETE'])
+def delete_favorites_planets(id_user, id_planet):
+
+    planet = FavoritePlanet.query.filter_by(user_id = id_user, planet_id = id_planet).first() 
+
+    if not planet: return jsonify({"status": False, "msg": "Favorite Planet doesn't exist"}), 404
+    planet.delete()
+
+    return jsonify({"status": True, "msg": "Favorite Planet deleted"}), 200
+
+@app.route('/api/favorite/character', methods=['POST'])
+def post_favorites_characters():
+        
+    user_id = request.json.get('user_id')
+    character_id = request.json.get('character_id')
+
+    favorites_character = FavoriteCharacter()
+    favorites_character.user_id = user_id
+    favorites_character.character_id = character_id
+    favorites_character.save()
+
+    return jsonify(favorites_character.serialize()), 201
+
+@app.route('/api/favorite/character/<int:id_user>/<int:id_character>', methods=['DELETE'])
+def delete_favorites_characters(id_user, id_character):
+
+    character = FavoriteCharacter.query.filter_by(user_id = id_user, character_id = id_character).first() 
+
+    if not character: return jsonify({"status": False, "msg": "Favorite Character doesn't exist"}), 404
+    character.delete()
+
+    return jsonify({"status": True, "msg": "Favorite Character deleted"}), 200
 
 
 
