@@ -36,31 +36,32 @@ def handle_invalid_usage(error):
 def sitemap():
     return generate_sitemap(app)
 
-@app.route('/api/register', methods=['POST'])
+""" @app.route('/api/register', methods=['POST'])
 def register():
 
-    username = request.json.get('username')
-    password = request.json.get('password')
     email = request.json.get('email')
-
-    verify_username = User.query.filter_by(username=username).first()
-    if verify_username: return jsonify({"msg": "Username ya esta en uso !"}), 400
-
+    password = request.json.get('password')
+    
     verify_email = User.query.filter_by(email=email).first()
     if verify_email: return jsonify({"msg": "Email ya esta en uso !"}), 400
 
     user = User()
-    user.username = username
-    user.password = generate_password_hash(password)
     user.email = email
+    user.password = generate_password_hash(password)
     user.save()
 
-    return jsonify(user.serialize()), 201
+    return jsonify(user.serialize()), 201 """
 
 @app.route('/api/user', methods=['GET'])
 def get_users():
     users = User.query.all()
     users = list(map(lambda user: user.serialize(), users))
+    return jsonify(users), 200
+
+@app.route('/api/user/register', methods=['GET'])
+def get_users_register():
+    users = User.query.all()
+    users = list(map(lambda user: user.serialize_user_register(), users))
     return jsonify(users), 200
 
 @app.route('/api/user/favorites', methods=['GET'])
@@ -73,16 +74,17 @@ def get_users_favorites():
 def post_users():
 
     name = request.json.get('name', " ")
-    username = request.json.get('username')
-    password = request.json.get('password')
     email = request.json.get('email')
+    password = request.json.get('password')
     is_active = request.json.get('is_active')
+
+    verify_email = User.query.filter_by(email=email).first()
+    if verify_email: return jsonify({"msg": "Email ya esta en uso !"}), 400
 
     user = User()
     user.name = name
-    user.username = username
-    user.password = password
     user.email = email
+    user.password = generate_password_hash(password)
     user.is_active = is_active
     user.save()
 

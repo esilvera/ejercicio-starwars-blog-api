@@ -6,9 +6,8 @@ class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
     name= db.Column(db.String(50), default="")
-    username = db.Column(db.String(100), unique=True, nullable=False)
-    password = db.Column(db.String(150), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
+    password = db.Column(db.String(150), nullable=False)
     is_active = db.Column(db.Boolean(), default=True)
     favorites_planets = db.relationship('Planet', cascade="all, delete", secondary="favorites_planets") # JOIN SQL MANY TO MANY
     favorites_characters = db.relationship('Character', cascade="all, delete", secondary="favorites_characters") # JOIN SQL MANY TO MANY
@@ -20,9 +19,8 @@ class User(db.Model):
         return {
             "id": self.id,
             "name": self.name,
-            "username": self.username,
             "email": self.email,
-            # do not serialize the password, its a security breach
+            "password": self.password
         }
 
     def serialize_with_favorites(self):
