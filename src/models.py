@@ -22,6 +22,13 @@ class User(db.Model):
             "email": self.email,
             "password": self.password
         }
+    
+    def serialize_user_register(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "email": self.email
+        }
 
     def serialize_with_favorites(self):
         return {

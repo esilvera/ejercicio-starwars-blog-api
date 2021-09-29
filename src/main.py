@@ -235,6 +235,17 @@ def post_favorites_planets():
 
     return jsonify(favorites_planet.serialize()), 201
 
+@app.route('/api/planet/<int:id>', methods=['DELETE'])
+def delete_planets(id):
+
+    planet = Planet.query.get(id)
+
+    if not planet: return jsonify({"status": False, "msg": "PLanet doesn't exist"}), 404
+
+    planet.delete()
+
+    return jsonify({"status": True, "msg": "Planet deleted"}), 200
+
 @app.route('/api/favorite/planet/<int:id_user>/<int:id_planet>', methods=['DELETE'])
 def delete_favorites_planets(id_user, id_planet):
 
